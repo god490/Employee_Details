@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Company ToDo App UI</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui"] },
+          colors: {
+            brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5' },
+            status: {
+              hold: '#ef4444',  // -1 On Hold
+              todo: '#9ca3af',  // 0 Yet To Start
+              inc:  '#f59e0b',  // 1 Incomplete
+              done: '#10b981',  // 2 Complete
+            }
+          },
+          boxShadow: { soft: '0 10px 25px -10px rgba(0,0,0,.25)' }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth collapse animation for details/summary */
+    details[open] summary svg { transform: rotate(90deg); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <!-- Topbar -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <div class="h-9 w-9 rounded-xl bg-brand-600 text-white grid place-items-center font-bold shadow-soft">CT</div>
+        <h1 class="text-lg sm:text-xl font-semibold">Company ToDo App</h1>
+      </div>
+
+      <!-- Global Search -->
+      <div class="ml-auto flex-1 max-w-xl">
+        <label class="relative block">
+          <span class="sr-only">Search</span>
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </span>
+          <input id="searchInput" type="text" placeholder="Search employee / role / department / skill / company" class="w-full rounded-xl border border-slate-200 pl-10 pr-3 py-2 outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-600 bg-white" />
+        </label>
+      </div>
+
+      <!-- Filters -->
+      <div class="ml-3 flex items-center gap-2">
+        <select id="statusFilter" class="rounded-xl border border-slate-200 py-2 px-3 bg-white focus:ring-2 focus:ring-brand-500/40">
+          <option value="">Status: All</option>
+          <option value="2">Complete</option>
+          <option value="1">Incomplete</option>
+          <option value="0">Yet To Start</option>
+          <option value="-1">On Hold</option>
+        </select>
+        <select id="sortBy" class="rounded-xl border border-slate-200 py-2 px-3 bg-white focus:ring-2 focus:ring-brand-500/40">
+          <option value="name">Sort: Name</option>
+          <option value="role">Sort: Role</option>
+          <option value="status">Sort: Status</option>
+        </select>
+        <button id="clearFiltersBtn" class="rounded-xl border border-slate-200 py-2 px-3 hover:bg-slate-100">Clear</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Breadcrumbs -->
+  <nav id="breadcrumbs" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 text-sm text-slate-600"></nav>
+
+  <!-- Content -->
+  <main id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"></main>
+
+  <!-- Fallback loader for local JSON -->
+  <div id="jsonLoader" class="hidden max-w-2xl mx-auto p-6">
+    <div class="rounded-2xl border border-dashed border-slate-300 p-6 bg-white">
+      <h3 class="font-semibold mb-2">Load companies_todo_app.json</h3>
+      <p class="text-sm text-slate-600 mb-4">We tried fetching <code>data/companies_todo_app.json</code> but it wasn't found (or blocked by the browser). Choose your JSON file to load it locally.</p>
+      <input id="fileInput" type="file" accept="application/json" class="block" />
+    </div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toast" class="fixed bottom-4 right-4 hidden"></div>
+
+  <script>
+  // ----------------------- Config & State -----------------------
+  const DATA_URL = 'data/companies_todo_app.json';
+  const STATUS_MAP = {
+    '-1': { label: 'On Hold', color: 'bg-status-hold', dot: 'bg-status-hold', order: 0, icon: '⏸️' },
+     '0': { label: 'Yet To Start', color: 'bg-status-todo', dot: 'bg-status-todo', order: 1, icon: '🕒' },
+     '1': { label: 'Incomplete', color: 'bg-status-inc', dot: 'bg-status-inc', order: 2, icon: '📝' },
+     '2': { label: 'Complete', color: 'bg-status-done', dot: 'bg-status-done', order: 3, icon: '✅' },
+  };
+
+  let db = { workspaces: [] }; // loaded JSON
+  let viewState = {
+    companyId: null,
+    deptId: null,
+    employeeId: null,
+    search: '',
+    status: '',
+    sortBy: 'name',
+  };
+
+  // ----------------------- Utils -----------------------
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+  function debounce(fn, ms = 250) { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms) } }
+  const slug = s => (s||'').toString().toLowerCase();
+
+  function showToast(msg) {
+    const el = $('#toast');
+    el.innerHTML = `<div class="rounded-xl bg-slate-900 text-white px-4 py-2 shadow-soft">${msg}</div>`;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 1400);
+  }
+
+  function statusPill(value) {
+    const m = STATUS_MAP[String(value)] || { label:'Unknown', dot:'bg-slate-300', icon:'❔' };
+    return `<span class="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full border border-slate-200 bg-white">
+      <span class="w-2 h-2 rounded-full ${m.dot}"></span>
+      <span>${m.icon} ${m.label}</span>
+    </span>`;
+  }
+
+  function skillBadge(txt) {
+    return `<span class="text-xs px-2 py-1 rounded-full bg-slate-100 border border-slate-200">${txt}</span>`;
+  }
+
+  function countEmployeesInCompany(ws) {
+    return ws.lists?.reduce((sum, l) => sum + (l.tasks?.length || 0), 0) || 0;
+  }
+
+  function getCompanyById(id) { return db.workspaces.find(w => w.id === id); }
+  function getDeptById(company, deptId) { return company?.lists?.find(l => l.id === deptId); }
+
+  function filterEmployees(list) {
+    const q = slug(viewState.search);
+    const sFilter = viewState.status;
+    let filtered = list.filter(emp => {
+      const hay = slug([
+        emp.title,
+        emp.description,
+        ...(emp.tags || [])
+      ].join(' '));
+      const matchQ = !q || hay.includes(q);
+      const matchS = !sFilter || String(emp.status) === String(sFilter);
+      return matchQ && matchS;
+    });
+
+    // Sort
+    if (viewState.sortBy === 'name') {
+      filtered.sort((a,b)=> a.title.localeCompare(b.title));
+    } else if (viewState.sortBy === 'role') {
+      const ra = (a.description||'').replace(/^Role:\s*/,'');
+      const rb = (b.description||'').replace(/^Role:\s*/,'');
+      filtered.sort((a,b)=> ra.localeCompare(rb));
+    } else if (viewState.sortBy === 'status') {
+      filtered.sort((a,b)=> (STATUS_MAP[String(a.status)]?.order||0) - (STATUS_MAP[String(b.status)]?.order||0));
+    }
+    return filtered;
+  }
+
+  function toggleStatus(emp) {
+    // cycle: -1 -> 0 -> 1 -> 2 -> -1
+    const order = [-1,0,1,2];
+    const idx = order.indexOf(emp.status);
+    emp.status = order[(idx+1) % order.length];
+    showToast(`Status set to ${STATUS_MAP[String(emp.status)].label}`);
+    // Persist in-memory "db" only; optionally mirror to localStorage
+    saveLocalState();
+    render(parseHash());
+  }
+
+  // ----------------------- Local persistence (optional) -----------------------
+  const LS_KEY = 'companyTodoUI';
+  function saveLocalState(){ localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+  function loadLocalState(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||''); }catch{ return null } }
+
+  // ----------------------- Router -----------------------
+  function setHash(hash) { location.hash = hash; }
+  function parseHash() {
+    const parts = location.hash.slice(2).split('/').filter(Boolean);
+    const [a,b,c,d,e,f] = parts;
+    if (!parts.length) return { view:'home' };
+    if (a === 'company' && b) {
+      if (!c) return { view:'company', companyId:b };
+      if (c === 'dept' && d) {
+        if (!e) return { view:'department', companyId:b, deptId:d };
+        if (e === 'emp' && f) return { view:'employee', companyId:b, deptId:d, employeeId:f };
+      }
+    }
+    return { view:'home' };
+  }
+  window.addEventListener('hashchange', () => render(parseHash()));
+
+  // ----------------------- Rendering -----------------------
+  const app = $('#app');
+  const crumbs = $('#breadcrumbs');
+
+  function renderBreadcrumbs(route) {
+    const items = [];
+    items.push(`<button class="text-brand-600 hover:underline" onclick="setHash('#/')">Home</button>`);
+
+    if (route.view !== 'home') {
+      const ws = getCompanyById(route.companyId);
+      if (ws) items.push(`<button class="text-brand-600 hover:underline" onclick="setHash('#/company/${ws.id}')">${ws.name}</button>`);
+    }
+    if (route.view === 'department' || route.view === 'employee') {
+      const ws = getCompanyById(route.companyId);
+      const dept = getDeptById(ws, route.deptId);
+      if (dept) items.push(`<button class="text-brand-600 hover:underline" onclick="setHash('#/company/${ws.id}/dept/${dept.id}')">${dept.name}</button>`);
+    }
+    if (route.view === 'employee') {
+      items.push(`<span class="text-slate-500">Employee</span>`);
+    }
+
+    crumbs.innerHTML = `<div class="flex items-center gap-2 text-sm">${items.map((s,i)=> (i?'<span class=\"text-slate-400\">/</span>':'') + s).join('')}</div>`;
+  }
+
+  function render(route) {
+    renderBreadcrumbs(route);
+    switch(route.view) {
+      case 'home': return renderCompanies();
+      case 'company': return renderCompany(route.companyId);
+      case 'department': return renderDepartment(route.companyId, route.deptId);
+      case 'employee': return renderEmployee(route.companyId, route.deptId, route.employeeId);
+    }
+  }
+
+  // Home: Company cards
+  function renderCompanies() {
+    const cards = db.workspaces.map(ws => {
+      const deptCount = ws.lists?.length || 0;
+      const empCount = countEmployeesInCompany(ws);
+      return `
+      <button onclick="setHash('#/company/${ws.id}')" class="group w-full text-left">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft hover:shadow transition-all hover:-translate-y-0.5 min-w-[260px]">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="text-xs text-slate-500">ID: ${ws.id}</div>
+              <h3 class="mt-1 text-lg font-semibold group-hover:text-brand-600">${ws.name}</h3>
+            </div>
+            <div class="rounded-xl px-2 py-1 text-xs bg-brand-100 text-brand-600">${deptCount} Dept</div>
+          </div>
+          <div class="mt-4 flex items-center justify-between text-sm">
+            <div class="flex items-center gap-2"><svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg><span>${empCount} Employees</span></div>
+            <div class="flex items-center gap-2"><svg xmlns='http://www.w3.org/2000/svg' class='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M3 3h7v7H3z'/><path d='M14 3h7v7h-7z'/><path d='M14 14h7v7h-7z'/><path d='M3 14h7v7H3z'/></svg><span>${deptCount} Lists</span></div>
+          </div>
+        </div>
+      </button>`;
+    }).join('');
+
+    // Global progress
+    let all = [];
+    db.workspaces.forEach(ws => ws.lists?.forEach(l => all = all.concat(l.tasks || [])) );
+    const byStatus = { '-1':0, '0':0, '1':0, '2':0 };
+    all.forEach(t => { const k = String(t.status); if (k in byStatus) byStatus[k]++; });
+
+    app.innerHTML = `
+      <section class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold">Companies</h2>
+          <div class="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <span class="text-slate-500">Progress:</span>
+            ${Object.keys(byStatus).map(k => `<span class=\"inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-white border\">${statusPill(k)}<b class=\"ml-1\">${byStatus[k]}</b></span>`).join('')}
+            <span class="ml-2 text-xs text-slate-500">Total: ${all.length}</span>
+          </div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          ${cards || '<div class="text-slate-500">No companies.</div>'}
+        </div>
+      </section>`;
+  }
+
+  // Company detail: departments table (collapsible rows)
+  function renderCompany(companyId) {
+    const ws = getCompanyById(companyId);
+    if (!ws) { app.innerHTML = '<div class="text-slate-500">Company not found.</div>'; return; }
+
+    let all = [];
+    ws.lists?.forEach(l => all = all.concat(l.tasks || []));
+    const filtered = filterEmployees(all);
+
+    const deptRows = ws.lists?.map((d, i) => {
+      const filteredInDept = filterEmployees(d.tasks || []);
+      return `
+      <tr class="border-t">
+        <td class="px-4 py-2 align-top">${i+1}</td>
+        <td class="px-4 py-2 align-top">
+          <details class="group">
+            <summary class="flex items-center gap-2 cursor-pointer select-none">
+              <svg class="w-4 h-4 transition-transform" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+              <span class="font-medium">${d.name}</span>
+              <span class="text-xs ml-2 px-2 py-0.5 rounded bg-brand-50 text-brand-600 border">${d.tasks?.length||0} Employees</span>
+            </summary>
+            <div class="mt-3">
+              <div class="overflow-x-auto border rounded-xl">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50 text-left">
+                    <tr>
+                      <th class="px-3 py-2">S.No</th>
+                      <th class="px-3 py-2">Employee</th>
+                      <th class="px-3 py-2">Role</th>
+                      <th class="px-3 py-2">Status</th>
+                      <th class="px-3 py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${filteredInDept.map((e, j) => `
+                      <tr class="border-t hover:bg-slate-50">
+                        <td class="px-3 py-2">${j+1}</td>
+                        <td class="px-3 py-2">
+                          <button class="text-brand-600 hover:underline" onclick="setHash('#/company/${ws.id}/dept/${d.id}/emp/${e.id}')">${e.title}</button>
+                        </td>
+                        <td class="px-3 py-2">${(e.description||'').replace(/^Role:\s*/,'')}</td>
+                        <td class="px-3 py-2">${statusPill(e.status)}</td>
+                        <td class="px-3 py-2">
+                          <button class="text-xs px-2 py-1 rounded border hover:bg-slate-100" onclick='(function(){ const c=getCompanyById("${ws.id}"); const dep=getDeptById(c,"${d.id}"); const emp=dep.tasks.find(t=>t.id==="${e.id}"); toggleStatus(emp); })()'>Toggle Status</button>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+        </td>
+        <td class="px-4 py-2 align-top">${d.tasks?.length||0}</td>
+      </tr>`;
+    }).join('') || '';
+
+    app.innerHTML = `
+      <section class="space-y-6">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="text-xl font-semibold">${ws.name}</h2>
+            <div class="text-sm text-slate-500">ID: ${ws.id} • ${ws.lists?.length||0} Departments • ${all.length} Employees</div>
+          </div>
+          <div class="text-sm text-slate-600">
+            <div class="flex flex-wrap gap-2">
+              ${['-1','0','1','2'].map(k=>`<span class=\"inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-white border\">${statusPill(k)}<b class=\"ml-1\">${all.filter(t=>String(t.status)===k).length}</b></span>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border rounded-2xl bg-white">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-left">
+              <tr>
+                <th class="px-4 py-2 w-16">S.No</th>
+                <th class="px-4 py-2">Department</th>
+                <th class="px-4 py-2 w-32">Employees</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${deptRows || '<tr><td colspan="3" class="px-4 py-6 text-slate-500">No departments.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Quick filtered employees table (all departments) -->
+        ${viewState.search || viewState.status ? `
+        <div class="space-y-3">
+          <h3 class="font-medium">Filtered Employees</h3>
+          <div class="overflow-x-auto border rounded-xl bg-white">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-left">
+                <tr>
+                  <th class="px-3 py-2">S.No</th>
+                  <th class="px-3 py-2">Employee</th>
+                  <th class="px-3 py-2">Role</th>
+                  <th class="px-3 py-2">Dept</th>
+                  <th class="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map((e, i) => {
+                  const dep = ws.lists.find(l => (l.tasks||[]).includes(e));
+                  return `
+                  <tr class="border-t hover:bg-slate-50 cursor-pointer" onclick="setHash('#/company/${ws.id}/dept/${dep.id}/emp/${e.id}')">
+                    <td class="px-3 py-2">${i+1}</td>
+                    <td class="px-3 py-2">${e.title}</td>
+                    <td class="px-3 py-2">${(e.description||'').replace(/^Role:\\s*/,'')}</td>
+                    <td class="px-3 py-2">${dep.name}</td>
+                    <td class="px-3 py-2">${statusPill(e.status)}</td>
+                  </tr>`;}).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+      </section>`;
+  }
+
+  // Department view: flat employee table
+  function renderDepartment(companyId, deptId) {
+    const ws = getCompanyById(companyId);
+    const dept = getDeptById(ws, deptId);
+    if (!ws || !dept) { app.innerHTML = '<div class="text-slate-500">Department not found.</div>'; return; }
+
+    const list = filterEmployees(dept.tasks || []);
+
+    app.innerHTML = `
+      <section class="space-y-6">
+        <div>
+          <h2 class="text-xl font-semibold">${dept.name} — ${ws.name}</h2>
+          <div class="text-sm text-slate-500">ID: ${dept.id} • ${dept.tasks?.length||0} Employees</div>
+        </div>
+
+        <div class="overflow-x-auto border rounded-2xl bg-white">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-left">
+              <tr>
+                <th class="px-4 py-2 w-16">S.No</th>
+                <th class="px-4 py-2">Employee</th>
+                <th class="px-4 py-2">Role</th>
+                <th class="px-4 py-2">Skills</th>
+                <th class="px-4 py-2">Status</th>
+                <th class="px-4 py-2 w-32">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map((e,i)=>`
+                <tr class="border-t hover:bg-slate-50">
+                  <td class="px-4 py-2">${i+1}</td>
+                  <td class="px-4 py-2">
+                    <button class="text-brand-600 hover:underline" onclick="setHash('#/company/${ws.id}/dept/${dept.id}/emp/${e.id}')">${e.title}</button>
+                  </td>
+                  <td class="px-4 py-2">${(e.description||'').replace(/^Role:\\s*/,'')}</td>
+                  <td class="px-4 py-2"><div class="flex flex-wrap gap-1">${(e.tags||[]).map(skillBadge).join('')}</div></td>
+                  <td class="px-4 py-2">${statusPill(e.status)}</td>
+                  <td class="px-4 py-2">
+                    <div class="flex items-center gap-2">
+                      <button class="text-xs px-2 py-1 rounded border hover:bg-slate-100" onclick='(function(){ const emp=(getDeptById(getCompanyById("${ws.id}"),"${dept.id}").tasks.find(t=>t.id==="${e.id}")); toggleStatus(emp); })()'>Toggle Status</button>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  // Employee dashboard
+  function renderEmployee(companyId, deptId, employeeId) {
+    const ws = getCompanyById(companyId);
+    const dept = getDeptById(ws, deptId);
+    const emp = dept?.tasks?.find(t => t.id === employeeId);
+    if (!emp) { app.innerHTML = '<div class="text-slate-500">Employee not found.</div>'; return; }
+
+    const role = (emp.description||'').replace(/^Role:\s*/, '');
+
+    app.innerHTML = `
+      <section class="space-y-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-semibold">${emp.title}</h2>
+              <div class="mt-1 text-slate-600">${role}</div>
+            </div>
+            <div>${statusPill(emp.status)}</div>
+          </div>
+
+          <div class="mt-6 grid sm:grid-cols-2 gap-4">
+            <div class="rounded-xl border p-4">
+              <div class="text-xs text-slate-500">Department</div>
+              <div class="font-medium">${dept.name}</div>
+            </div>
+            <div class="rounded-xl border p-4">
+              <div class="text-xs text-slate-500">Company</div>
+              <div class="font-medium">${ws.name}</div>
+            </div>
+            <div class="rounded-xl border p-4 sm:col-span-2">
+              <div class="text-xs text-slate-500 mb-1">Skills</div>
+              <div class="flex flex-wrap gap-2">${(emp.tags||[]).map(skillBadge).join('')}</div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex items-center gap-2">
+            <button class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50" onclick='(function(){ const e=getDeptById(getCompanyById("${ws.id}"),"${dept.id}").tasks.find(t=>t.id==="${emp.id}"); toggleStatus(e); })()'>Toggle Status</button>
+            <button class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50" onclick="history.back()">Back</button>
+          </div>
+        </div>
+      </section>`;
+  }
+
+  // ----------------------- Events -----------------------
+  $('#searchInput').addEventListener('input', debounce(e => { viewState.search = e.target.value; render(parseHash()); }));
+  $('#statusFilter').addEventListener('change', e => { viewState.status = e.target.value; render(parseHash()); });
+  $('#sortBy').addEventListener('change', e => { viewState.sortBy = e.target.value; render(parseHash()); });
+  $('#clearFiltersBtn').addEventListener('click', () => { $('#searchInput').value=''; $('#statusFilter').value=''; $('#sortBy').value='name'; viewState.search=''; viewState.status=''; viewState.sortBy='name'; render(parseHash()); });
+
+  // ----------------------- Boot -----------------------
+  async function loadJSON() {
+    // Try localStorage first (user may have toggled statuses earlier)
+    const saved = loadLocalState();
+    if (saved && saved.workspaces) { db = saved; return true; }
+
+    try {
+      const res = await fetch(DATA_URL);
+      if (!res.ok) throw new Error('not ok');
+      db = await res.json();
+      return true;
+    } catch(err) {
+      // Show manual loader
+      document.getElementById('jsonLoader').classList.remove('hidden');
+      return false;
+    }
+  }
+
+  // Manual file loader
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text);
+      if (!obj.workspaces) throw new Error('Invalid JSON shape');
+      db = obj; saveLocalState();
+      document.getElementById('jsonLoader').classList.add('hidden');
+      start();
+    } catch(err) {
+      showToast('Invalid JSON file.');
+    }
+  });
+
+  async function start(){
+    render(parseHash());
+  }
+
+  (async function init(){
+    const ok = await loadJSON();
+    start();
+  })();
+  </script>
+</body>
+</html>
