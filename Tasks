@@ -1,0 +1,163 @@
+JSON ToDo App UI for Employee
+
+Steps to Follow:?
+
+?
+
+Load companies_todo_app.json?
+
+?
+
+Company Level?
+
+- Show company names as headers/cards?
+
+- Group departments under each company?
+
+?
+
+Department Level?
+
+- List departments, optionally collapsible?
+
+?
+
+Employee Level?
+
+- Show employee name + role?
+
+?
+
+?
+
+?
+
+??
+
+Skills?
+
+- Display as badges or lists?
+
+?
+
+Status Handling?
+
+-  1 = Incomplete, 2 = Complete, 0 = Yet To Start, -1 =OnHold?
+
+- Use colors/icons for clarity?
+
+?
+
+Extra Features?
+
+- Search, progress counts, toggle completed?
+
+?
+
+Final Review?
+
+- Use loops, conditions, arrays, objects, DOM?
+
+
+
+i wanna creae some Json UI with html+Tailwind CSS and JS
+
+now i am having the Company details in JSON format.That contains Structure Like
+
+{
+
+    "workspaces": [
+
+        {
+
+            "id": "C001",
+
+            "name": "Company_1",
+
+            "lists": [
+
+                {
+
+                    "id": "C001-D01",
+
+                    "name": "Sales_1",
+
+                    "tasks": [
+
+                        {
+
+                            "id": "T1",
+
+                            "title": "Employee1",
+
+                            "description": "Role: QA Analyst",
+
+                            "tags": [
+
+                                "Budgeting",
+
+                                "SEO",
+
+                                "Negotiation",
+
+                                "Django",
+
+                                "React"
+
+                            ],
+
+                            "status": 1
+
+                        },
+
+                        {
+
+                            "id": "T2",
+
+                            "title": "Employee2",
+
+                            "description": "Role: Software Engineer",
+
+                            "tags": [
+
+                                "Security",
+
+                                "SEO"
+
+                            ],
+
+                            "status": 0
+
+                        },..................................................
+
+So Now i want to create the user UI for the Company Details
+
+1,In the Webpage All the Comanies should Visible in the Card format with its name and the id no. then and should show the no of Departments
+
+if i Click the Particular card of the Comapny then it will show the no of Employee and all the departments Details in Table Formate...with SNO
+
+Then If I click the Particular Department then it should Show the all Employee Names with their role in te tableformate like
+
+1.SNO 2.Employee_Name 3.Role 
+
+then if i Click one prticular Employee the its should go to that Employee DashBoard here the following Detals Should Shown
+
+1.Employee Name
+
+2.Rmployee Role
+
+3.DepartMent Name
+
+4.Company Name
+
+5.Tags(as a skills..it should shows as a badges)
+
+6.status(-  1 = Incomplete, 2 = Complete, 0 = Yet To Start, -1 =OnHold - Use colors/icons for clarity)
+
+and its should sort and fetch all/one Employee Lists by their names ,status,departments,skills by searching
+
+- Use loops, conditions, arrays, objects, DOM use some animations for beautiful visible
+
+use HTML+Tailwind and JS to implements and i have the data file in my computer 
+
+give the full code and folder structure
