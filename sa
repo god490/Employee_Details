@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hotel Feedback Form</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="plugins/DataTables/datatables.css">
+  <link rel="stylesheet" href="plugins/DataTables/datatables.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-xl mx-auto bg-blue-400 p-6 rounded-3xl shadow">
+    <h1 class="text-2xl font-bold mb-4 ">Hotel Customer Feedback</h1>
+    <form id="feedbackForm" class="space-y-4"></form>
+    <button id="submitBtn" class="w-full mt-4 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600">Submit</button>
+  </div>
+
+  <div class="max-w-5xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Submitted Feedback</h2>
+    <table id="feedbackTable" class="display w-full"></table>
+  </div>
+
+  <div class="max-w-3xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Ratings Chart</h2>
+    <canvas id="ratingsChart"></canvas>
+  </div>
+  <script src="plugins/jquery-3.7.1.min.js"></script>
+  <script src="plugins/DataTables/datatables.js"></script>
+  <script src="plugins/DataTables/datatables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="plugins/chart.min.js"></script>
+  <script>
+    const formData=[
+    {"title":"First Name","id":"fname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{3,}$/},
+    {"title":"Last Name","id":"lname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{1,}$/},
+    {"title":"Email","id":"email","inputType":"text","mandatory":true,"regex":/^[^\s@]+@[^\s@]+\.[^\s@]+$/},
+    {"title":"Phone Number","id":"phoneNum","inputType":"text","mandatory":true,"regex":/^[0-9]{10}$/},
+    {"title": "Gender", "id": "gender", "inputType": "select", "mandatory": true,
+      "options":[{"text": "Male", "value": "male"},{"text": "Female", "value": "female"},{"text": "Other", "value": "other"}]},
+    {"title": "Room Type", "id": "roomType", "inputType": "select", "mandatory": true,
+      "options":[{"text": "Standard", "value": "standard"},{"text": "Deluxe", "value": "deluxe"},{"text": "Suite", "value": "suite"}]},
+    {"title": "Number of Days spend", "id": "nights", "inputType": "number", "mandatory": true},
+    {"title": "Facilities Used", "id": "facilities", "inputType": "multiselect", "mandatory": true,
+      "options":[{"text": "Free WiFi", "value": "wifi"},{"text": "Swimming Pool", "value": "pool"},{"text": "Spa", "value": "spa"},{"text": "Gym", "value": "gym"},{"text": "Restaurant", "value": "restaurant"}]},
+    {"title": "Overall Rating", "id": "overallRating", "inputType": "select", "mandatory": true,
+      "options":[{"text": "1 - Very Poor", "value": 1},{"text": "2 - Poor", "value": 2},{"text": "3 - Average", "value": 3},{"text": "4 - Good", "value": 4},{"text": "5 - Excellent", "value": 5}]},
+    {"title": "Comments", "id": "comments", "inputType": "textarea", "mandatory": false},
+    {"title": "Accept Terms", "id": "terms", "inputType": "checkbox", "mandatory": true}];
+  function create(field){
+    let inputEl = '';
+    switch (field.inputType){
+      case "text":
+      case "number":
+      case "password":
+        inputEl = `<input type="${field.inputType}" id="${field.id}" class="w-full border p-2 rounded">`;
+        break;
+      case "textarea":
+        inputEl = `<textarea id="${field.id}" class="w-full border p-2 rounded"></textarea>`;
+        break;
+      case "select":
+        inputEl = `<select id="${field.id}" class="w-full border p-2 rounded">
+          <option value="">Select</option>
+          ${field.options.map(opt => `<option value="${opt.value}">${opt.text}</option>`)}
+        </select>`;
+        break;
+      case "multiselect":
+        inputEl = field.options.map(opt =>
+          `<label class="block"><input type="checkbox" value="${opt.value}" name="${field.id}" class="mr-2">${opt.text}</label>`
+        ).join('');
+        break;
+      case "checkbox":
+        inputEl = `<input type="checkbox" id="${field.id}" class="mr-2">${field.title}`;
+        return `<div><label>${inputEl}</label><p id="${field.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+    }
+    return `<div><label class="block font-medium mb-1">${field.title}</label>${inputEl}<p id="${field.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+  }
+  function Form(){
+    const form = $("#feedbackForm");
+    formData.forEach(field => form.append(create(field)));
+  }
+  function validate(field, value){
+    let errorMsg = "";
+    if(field.mandatory && (!value||(Array.isArray(value) && value.length == 0))){
+      errorMsg = `${field.title} is required.`;
+    }
+    else if(field.regex && value && !field.regex.test(value)){
+      errorMsg = `Invalid ${field.title}.`;
+    }
+    if(errorMsg){
+      $(`#${field.id}Error`).text(errorMsg).removeClass("hidden");
+      return false;
+    } 
+    else{
+      $(`#${field.id}Error`).text("").addClass("hidden");
+      return true;
+    }
+  }
+  function getFData(){
+    const data={};
+    let valid = true;
+    formData.forEach(field =>{
+      let value;
+      if(field.inputType == "multiselect"){
+        value = $(`input[name=${field.id}]:checked`).map(function () { return this.value; }).get();
+      }
+      else if(field.inputType == "checkbox"){
+        value = $(`#${field.id}`).is(":checked");
+      }
+      else{
+        value = $(`#${field.id}`).val();
+      }
+      if (!validate(field, value)) valid=false;
+      data[field.id] = value;
+    });
+
+    if (!valid) throw new Error("Validation failed");
+    return data;
+  }
+  function setData(allData)
+  {
+    localStorage["feedbacks"]=JSON.stringify(allData);
+  }
+  function getData(){
+    const r= localStorage["feedbacks"];
+    if (!r) return [];
+    let d = JSON.parse(r);
+    const now=Date.now();
+    d=d.filter((i)=>i._expiry&&i._expiry>now);
+    localStorage["feedbacks"]=JSON.stringify(d);
+    return d;
+
+  }
+  function saveData(data){
+    let allData=getData();
+    const now=new Date().getTime();
+    data._expiry=now+300000;
+    allData.push(data);
+    setData(allData);
+  }
+  function Table() {
+    if ($.fn.DataTable.isDataTable("#feedbackTable")) {
+      $("#feedbackTable").DataTable().ajax.reload();
+    } else {
+      $("#feedbackTable").DataTable({
+        ajax: function (data, callback) {
+          const allData = getData();
+          callback({ data: allData });
+        },
+        columns: formData.map((f) => ({ title: f.title, data: f.id })),
+      });
+    }
+  }
+  let chartIN = null;
+  function lChart(){
+    let allData = getData();
+    let ratingCounts = {1:0,2:0,3:0,4:0,5:0};
+    allData.forEach(d => {if(d.overallRating) ratingCounts[d.overallRating]++;});
+    const ctx = document.getElementById("ratingsChart").getContext("2d");
+    if (chartIN) chartIN.destroy();
+    chartIN = new Chart(ctx,{
+      type: "pie",
+      data:{
+        labels: ["1", "2", "3", "4", "5"],
+        datasets: [{
+          data: Object.values(ratingCounts),
+          backgroundColor:["#f87171", "#93928fff", "#facc15", "#4ade80", "#60a5fa"]
+        }]
+      }
+    });
+  }
+  $(document).ready(function(){
+    Form();
+    Table();
+    lChart();
+    $("#submitBtn").on("click", function(e){
+      e.preventDefault();
+      try {
+        const data = getFData();
+        saveData(data);
+        Table();
+        lChart();
+        alert("Feedback submitted successfully!");
+        $("#feedbackForm").trigger("reset");
+      }catch(err){
+        console.error(err);
+        alert("Please fix validation errors before submitting.");
+      }
+    });
+  });
+  </script>
+  
+</body>
+</html>
+
+
+
+
+
+
+
