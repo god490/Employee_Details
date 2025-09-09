@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Registration Form</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+  <!-- DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jQuery UI (for Datepicker) -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
+
+  <!-- Select2 (for multiselect) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-6">
+  <div class="max-w-xl mx-auto bg-blue-400 p-6 rounded-3xl shadow">
+    <h1 class="text-2xl font-bold mb-4">User Registration</h1>
+    <form id="registrationForm" class="space-y-4"></form>
+    <div class="flex gap-4">
+      <button id="submitBtn" class="w-1/2 mt-4 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Register</button>
+      <button type="reset" id="resetBtn" class="w-1/2 mt-4 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Reset</button>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Registered Users</h2>
+    <table id="usersTable" class="display w-full"></table>
+  </div>
+
+  <div class="max-w-3xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Users Age Group</h2>
+    <canvas id="usersChart"></canvas>
+  </div>
+
+<script>
+  const formData = [
+    {"title":"First Name","id":"fname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{3,}$/},
+    {"title":"Last Name","id":"lname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{1,}$/},
+    {"title":"Email","id":"email","inputType":"text","mandatory":true,"regex":/^[^\s@]+@[^\s@]+\.[^\s@]+$/},
+    {"title":"Phone Number","id":"phoneNum","inputType":"text","mandatory":true,"regex":/^[0-9]{10}$/},
+    {"title":"Date of Birth","id":"dob","inputType":"date","mandatory":true},
+    {"title":"Gender","id":"gender","inputType":"select","mandatory":true,
+      "options":[{"text":"Male","value":"male"},{"text":"Female","value":"female"},{"text":"Other","value":"other"}]},
+    {"title":"Marital Status","id":"marital","inputType":"radio","mandatory":true,
+      "options":[{"text":"Single","value":"single"},{"text":"Married","value":"married"}]},
+    {"title":"Interests","id":"interests","inputType":"multiselect","mandatory":true,
+      "options":[{"text":"Sports","value":"sports"},{"text":"Music","value":"music"},{"text":"Travel","value":"travel"},{"text":"Reading","value":"reading"}]},
+    {"title":"Password","id":"password","inputType":"password","mandatory":true,"regex":/^.{6,}$/},
+    {"title":"Confirm Password","id":"confirmPassword","inputType":"password","mandatory":true},
+    {"title":"Accept Terms","id":"terms","inputType":"checkbox","mandatory":true}
+  ];
+
+  function create(field){
+    let inputEl = '';
+    switch (field.inputType){
+      case "text":
+      case "number":
+      case "password":
+      case "date":
+        inputEl = `<input type="${field.inputType}" id="${field.id}" class="w-full border p-2 rounded">`;
+        break;
+      case "textarea":
+        inputEl = `<textarea id="${field.id}" class="w-full border p-2 rounded"></textarea>`;
+        break;
+      case "select":
+        inputEl = `<select id="${field.id}" class="w-full border p-2 rounded">
+          <option value="">Select</option>
+          ${field.options.map(opt => `<option value="${opt.value}">${opt.text}</option>`)}
+        </select>`;
+        break;
+      case "multiselect":
+        inputEl = `<select id="${field.id}" multiple="multiple" class="w-full border p-2 rounded">
+          ${field.options.map(opt => `<option value="${opt.value}">${opt.text}</option>`)}
+        </select>`;
+        break;
+      case "radio":
+        inputEl = field.options.map(opt =>
+          `<label class="mr-4"><input type="radio" name="${field.id}" value="${opt.value}" class="mr-1">${opt.text}</label>`
+        ).join('');
+        break;
+      case "checkbox":
+        inputEl = `<input type="checkbox" id="${field.id}" class="mr-2">${field.title}`;
+        return `<div><label>${inputEl}</label><p id="${field.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+    }
+    return `<div><label class="block font-medium mb-1">${field.title}</label>${inputEl}<p id="${field.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+  }
+
+  function Form(){
+    const form = $("#registrationForm");
+    formData.forEach(field => form.append(create(field)));
+    $("#dob").datepicker({ changeMonth: true, changeYear: true, yearRange: "1950:2025", dateFormat: "yy-mm-dd" });
+    $("#interests").select2({ placeholder: "Select interests" });
+  }
+
+  function validate(field, value){
+    let errorMsg = "";
+    if(field.mandatory && (!value||(Array.isArray(value) && value.length == 0))){
+      errorMsg = `${field.title} is required.`;
+    }
+    else if(field.regex && value && !field.regex.test(value)){
+      errorMsg = `Invalid ${field.title}.`;
+    }
+    if(field.id==="confirmPassword"){
+      const pwd = $("#password").val();
+      if(value!==pwd) errorMsg = "Passwords do not match.";
+    }
+    if(errorMsg){
+      $(`#${field.id}Error`).text(errorMsg).removeClass("hidden");
+      return false;
+    } else {
+      $(`#${field.id}Error`).text("").addClass("hidden");
+      return true;
+    }
+  }
+
+  function getFData(){
+    const data={};
+    let valid = true;
+    formData.forEach(field =>{
+      let value;
+      if(field.inputType==="multiselect"){
+        value = $(`#${field.id}`).val();
+      }
+      else if(field.inputType==="checkbox"){
+        value = $(`#${field.id}`).is(":checked");
+      }
+      else if(field.inputType==="radio"){
+        value = $(`input[name=${field.id}]:checked`).val();
+      }
+      else{
+        value = $(`#${field.id}`).val();
+      }
+      if (!validate(field, value)) valid=false;
+      data[field.id] = value;
+    });
+    if (!valid) throw new Error("Validation failed");
+    return data;
+  }
+
+  function setData(allData){ localStorage["users"]=JSON.stringify(allData); }
+  function getData(){
+    const r= localStorage["users"];
+    if (!r) return [];
+    return JSON.parse(r);
+  }
+  function saveData(data){
+    let allData=getData();
+    allData.push(data);
+    setData(allData);
+  }
+
+  function Table() {
+    if ($.fn.DataTable.isDataTable("#usersTable")) {
+      $("#usersTable").DataTable().ajax.reload();
+    } else {
+      $("#usersTable").DataTable({
+        ajax: function (data, callback) {
+          const allData = getData();
+          callback({ data: allData });
+        },
+        columns: formData.map((f) => ({ title: f.title, data: f.id })),
+      });
+    }
+  }
+
+  let chartIN=null;
+  function lChart(){
+    let allData=getData();
+    let ageGroups={ "0-20":0, "21-40":0, "41-60":0, "60+":0 };
+    allData.forEach(d=>{
+      if(d.dob){
+        let age=new Date().getFullYear()-new Date(d.dob).getFullYear();
+        if(age<=20) ageGroups["0-20"]++;
+        else if(age<=40) ageGroups["21-40"]++;
+        else if(age<=60) ageGroups["41-60"]++;
+        else ageGroups["60+"]++;
+      }
+    });
+    const ctx=document.getElementById("usersChart").getContext("2d");
+    if(chartIN) chartIN.destroy();
+    chartIN=new Chart(ctx,{
+      type:"bar",
+      data:{
+        labels:Object.keys(ageGroups),
+        datasets:[{
+          label:"Users by Age Group",
+          data:Object.values(ageGroups),
+          backgroundColor:["#60a5fa","#34d399","#fbbf24","#f87171"]
+        }]
+      }
+    });
+  }
+
+  $(document).ready(function(){
+    Form();
+    Table();
+    lChart();
+    $("#submitBtn").on("click", function(e){
+      e.preventDefault();
+      try{
+        const data=getFData();
+        saveData(data);
+        Table();
+        lChart();
+        alert("User registered successfully!");
+        $("#registrationForm").trigger("reset");
+        $("#interests").val(null).trigger("change");
+      }catch(err){
+        alert("Please fix validation errors before submitting.");
+      }
+    });
+  });
+</script>
+</body>
+</html>
