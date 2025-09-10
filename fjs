@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Registration Form</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="plugins/DataTables/datatables.css">
+  <link rel="stylesheet" href="plugins/DataTables/datatables.min.css">
+  <link rel="stylesheet" href="plugins/jquery-ui-1.14.1.custom/jquery-ui.css">
+  <link rel="stylesheet" href="plugins/lou-multi-select-57fb8d3/css/multi-select.css">
+  <link rel="stylesheet" href="plugins/plain-bar-column-chart/demo/css/main.css">
+
+  <!-- <link rel="stylesheet" href="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/demo/css/main.css"> -->
+<!-- <link rel="stylesheet" href="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/demo/css/ui-lightness/jquery-ui-1.10.4.custom.css"> -->
+  <!-- <link rel="stylesheet" href="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/demo/css/normalize.min.css"> -->
+
+  <script src="plugins/jquery-3.7.1.min.js"></script>
+  <script src="plugins/DataTables/datatables.js"></script>
+  <script src="plugins/DataTables/datatables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="plugins/chart.min.js"></script>
+  <script src="plugins/jquery-ui-1.14.1.custom/jquery-ui.js"></script>
+  <script src="plugins/lou-multi-select-57fb8d3/js/jquery.multi-select.js"></script>  <!--0.9.12 -->
+  <script src="plugins/plain-bar-column-chart/demo/js/main.js"></script>  
+  <!-- <script src="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/demo/js/main.js"></script>  
+  <script src="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/src/jquery.autocomplete.multiselect.js"></script>  
+  <script src="plugins/jQuery-jQuery-UI-Plugin-For-Simle-Tokenized-Autocomplete-Autocomplete-Multiselect/demo/js/vendor/modernizr-2.6.2.min.js"></script>   -->
+</head>
+<body class="bg-gray-100 min-h-screen p-6 font-family-serif">
+  <div class="max-w-xl mx-auto bg-gray-300 p-6 rounded-3xl shadow">
+    <h1 class="text-2xl font-bold mb-4 text-center">User Registration</h1>
+    <form id="registrationForm" class="space-y-4"></form>
+    <div class="flex gap-4 justify-center">
+      <button id="submitBtn" class="w-1/2 mt-4 bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Register</button>
+    </div>
+  </div>
+  <div class="max-w-5xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Registered Users</h2>
+    <table id="usersTable" class="display w-full"></table>
+  </div>
+
+  <div class="max-w-3xl mx-auto mt-10">
+    <h2 class="text-xl font-semibold mb-4">Users Age Group</h2>
+    <canvas id="usersChart"></canvas>
+  </div>
+
+<script>
+
+const jsonData=[
+    {"title":"First Name","id":"fname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{3,}$/},
+    {"title":"Last Name","id":"lname","inputType":"text","mandatory":true,"regex":/^[A-Za-z]{1,}$/},
+    {"title":"Email","id":"email","inputType":"text","mandatory":true,"regex":/^[^\s@]+@[^\s@]+\.[^\s@]+$/},
+    {"title":"Phone Number","id":"phoneNum","inputType":"text","mandatory":true,"regex":/^[0-9]{10}$/},
+    {"title":"Date of Birth","id":"dob","inputType":"date","mandatory":true},
+    {"title":"Gender","id":"gender","inputType":"select","mandatory":true,
+      "options":[{"text":"Male","value":"male"},{"text":"Female","value":"female"},{"text":"Other","value":"other"}]},
+    {"title":"Marital Status","id":"marital","inputType":"radio","mandatory":true,
+      "options":[{"text":"Single","value":"single"},{"text":"Married","value":"married"}]},
+    {"title":"Interests","id":"ms","inputType":"multiselect","mandatory":true,
+      "options":[{"text":"Sports","value":"sports"},{"text":"Music","value":"music"},{"text":"Travel","value":"travel"},{"text":"Reading","value":"reading"}]},
+    {"title":"Password","id":"password","inputType":"password","mandatory":true,"regex":/^.{6,}$/},
+    {"title":"Confirm Password","id":"confirmPassword","inputType":"password","mandatory":true},
+    {"title":"Accept Terms","id":"terms","inputType":"checkbox","mandatory":true}
+];
+function create(f){
+    let input='';
+    switch (f.inputType){
+      case "text":
+      case "number":
+      case "password":
+        input = `<input type="${f.inputType}" id="${f.id}" class="w-full border p-2 rounded">`;
+        break;
+      case "date":
+        input = `<input type="text" id="${f.id}" class="w-full border p-2 rounded">`;
+        break;
+      case "textarea":
+        input = `<textarea id="${f.id}" class="w-full border p-2 rounded"></textarea>`;
+        break;
+      case "select":
+        input = `<select id="${f.id}" class="w-full border p-2 rounded">
+          <option value="">Select</option>
+          ${f.options.map(opt => `<option value="${opt.value}">${opt.text}</option>`)}
+        </select>`;
+        break;
+      case "multiselect":
+        input = `<select id="${f.id}" multiple="multiple" class="w-full border p-2 rounded">
+          ${f.options.map(opt => `<option value="${opt.value}">${opt.text}</option>`)}
+        </select>`;
+        break;
+      case "radio":
+        input = f.options.map(opt =>
+          `<label class="mr-4"><input type="radio" name="${f.id}" value="${opt.value}" class="mr-1">${opt.text}</label>`
+        ).join('');
+        break;
+      case "checkbox":
+        input = `<input type="checkbox" id="${f.id}" class="mr-2">${f.title}`;
+        return `<div><label>${input}</label><p id="${f.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+    }
+    return `<div><label class="block font-medium mb-1">${f.title}</label>${input}<p id="${f.id}Error" class="text-red-500 text-sm hidden"></p></div>`;
+}
+function Form(){
+    
+    const form = $("#registrationForm");
+    jsonData.forEach(f => form.append(create(f)));
+    $("#dob").datepicker({changeMonth:true,changeYear: true,yearRange:"1950:2025",dateFormat:"yy-mm-dd",maxDate:0});
+    $("#ms").multiSelect({ placeholder:"Select interests"});
+    //$("#skills").multiSelect({ placeholder:"Select skills"});
+    // $('#skills').autocomplete({source: availableTags,multiselect: true});
+}
+function validate(f, v){
+    let eMsg = "";
+    if(f.mandatory&&(!v||(Array.isArray(v)&&v.length==0))){
+      eMsg=`${f.title} is required.`;
+    }
+    else if(f.regex&&v&&!f.regex.test(v)){
+      eMsg=`Invalid ${f.title}.`;
+    }
+    if(f.id==="confirmPassword"){
+      const pwd=$("#password").val();
+      if(v!==pwd) eMsg = "Passwords do not match.";
+    }
+    if(eMsg){
+      $(`#${f.id}Error`).text(eMsg).removeClass("hidden");
+      return false;
+    } else {
+      $(`#${f.id}Error`).text("").addClass("hidden");
+      return true;
+    }
+}
+function getFData(){
+  // var instance = $('#example').tokenizer({
+
+  //   availableTags:["ActionScript","AppleScript","Asp","BASIC","C","C++","Clojure","COBOL","ColdFusion","Erlang","Fortran","Groovy","Haskell","Java","JavaScript","Lisp","Perl","PHP","Python","Ruby","Scala","Scheme"]
+  // });
+    const data={};
+    let flag = true;
+    jsonData.forEach(f =>{
+      let v;
+
+      if(f.inputType=="multiselect"){
+        v=$(`#${f.id}`).val();
+      }
+      else if(f.inputType=="checkbox"){
+        v=$(`#${f.id}`).is(":checked");
+      }
+      else if(f.inputType=="radio"){
+        v=$(`input[name=${f.id}]:checked`).val();
+      }
+      else{
+        v=$(`#${f.id}`).val();
+      }
+      if (!validate(f,v)) flag=false;
+      data[f.id]=v;
+    });
+    if (!flag) throw new Error("Validation failed");
+    return data;
+}
+  function setData(allData)
+  {
+    localStorage["users"]=JSON.stringify(allData);
+  }
+  function getData(){
+    const r= localStorage["users"];
+    if (!r) return [];
+    let d = JSON.parse(r);
+    const now=Date.now();
+    d=d.filter((i)=>i._expiry&&i._expiry>now);
+    localStorage["users"]=JSON.stringify(d);
+    return d;
+
+  }
+  function saveData(data){
+    let allData=getData();
+    const now=new Date().getTime();
+    data._expiry=now+300000;
+    allData.push(data);
+    setData(allData);
+  }
+  function Table() {
+    if ($.fn.DataTable.isDataTable("#usersTable")) {
+      $("#usersTable").DataTable().ajax.reload();
+    } else {
+      $("#usersTable").DataTable({
+        ajax: function (data, callback) {
+          const allData = getData();
+          callback({ data: allData });
+        },
+        columns:jsonData.filter(f=>f.id!=="confirmPassword"&&f.id!=="password").map(f=>({title:f.title,data:f.id})),
+        //columns: jsonData.map((f) => ({ title: f.title, data: f.id })),
+        
+      });
+    }
+  }
+let chartIN=null;
+function lChart(){
+    let allData=getData();
+    let ageGroups={ "0-20":0, "21-40":0, "41-60":0, "60+":0 };
+    allData.forEach(d=>{
+      if(d.dob){
+        let age=new Date().getFullYear()-new Date(d.dob).getFullYear();
+        if(age<=20) ageGroups["0-20"]++;
+        else if(age<=40) ageGroups["21-40"]++;
+        else if(age<=60) ageGroups["41-60"]++;
+        else ageGroups["60+"]++;
+      }
+    });
+    const ctx=document.getElementById("usersChart").getContext("2d");
+    if(chartIN) chartIN.destroy();
+    chartIN=new Chart(ctx,{
+      type:"bar",
+      data:{
+        labels:Object.keys(ageGroups),
+        datasets:[{
+          label:"Users by Age Group",
+          data:Object.values(ageGroups),
+          backgroundColor:["#60a5fa","#34d399","#fbbf24","#f87171"]
+        }]
+      }
+    });
+}
+$(document).ready(function(){
+    Form();
+    Table();
+    lChart();
+    $("#submitBtn").on("click", function(e){
+      e.preventDefault();
+      try{
+        const data=getFData();
+        saveData(data);
+        Table();
+        lChart();
+        alert("User registered successfully!");
+        $("#registrationForm").trigger("reset");
+        $("#ms").trigger("reset");
+      }catch(err){
+        alert("Please fix validation errors before submitting.");
+      }
+    });
+});
+</script>
+</body>
+</html>
