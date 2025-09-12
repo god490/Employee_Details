@@ -1,0 +1,115 @@
+insert into guest (firstname, lastname, emailid, phoneno, gender, govtidproof, address)
+values 
+('rahul', 'sharma', 'rahul@example.com', '9876543210', 'male', 'aadhar123', 'delhi, india'),
+('anita', 'verma', 'anita@example.com', '9876501234', 'female', 'pan567', 'mumbai, india'),
+('karan', 'mehta', 'karan@example.com', '9812345678', 'male', 'dl890', 'bangalore, india'),
+('sneha', 'reddy', 'sneha@example.com', '9123456789', 'female', 'aadhar456', 'hyderabad, india'),
+('arjun', 'kapoor', 'arjun@example.com', '9988776655', 'male', 'passport789', 'chennai, india');
+
+insert into login (emailid, password)
+values
+('rahul@example.com', 'rahul@123'),
+('anita@example.com', 'anita@123'),
+('karan@example.com', 'karan@123'),
+('sneha@example.com', 'sneha@123'),
+('arjun@example.com', 'arjun@123');
+
+insert into booking (guestemail, noofdaysstayed, indate, outdate, typeofroom, noofmembers, totalprice, facilities)
+values
+('rahul@example.com', 3, '2025-09-01', '2025-09-04', 'deluxe', 2, 6000.00, 'wifi, breakfast'),
+('anita@example.com', 2, '2025-09-05', '2025-09-07', 'suite', 3, 9000.00, 'wifi, pool'),
+('karan@example.com', 1, '2025-09-03', '2025-09-04', 'standard', 1, 2000.00, 'wifi'),
+('sneha@example.com', 5, '2025-09-08', '2025-09-13', 'suite', 4, 22000.00, 'wifi, spa, pool'),
+('arjun@example.com', 4, '2025-09-02', '2025-09-06', 'deluxe', 2, 8000.00, 'wifi, breakfast, gym');
+
+insert into rooms (roomnumber, typeofroom, description, status, price, capacity)
+values
+('101', 'standard', 'basic room with ac', 'available', 2000.00, 2),
+('102', 'deluxe', 'spacious room with balcony', 'booked', 3000.00, 3),
+('103', 'suite', 'luxury suite with living area', 'available', 4500.00, 4),
+('104', 'deluxe', 'room with pool view', 'maintenance', 3500.00, 3),
+('105', 'standard', 'compact room for single guest', 'available', 1500.00, 1);
+
+insert into facilities (name, price, description)
+values
+('wifi', 200.00, 'high-speed internet access'),
+('breakfast', 500.00, 'complimentary breakfast'),
+('pool', 1000.00, 'access to swimming pool'),
+('gym', 800.00, 'access to fitness center'),
+('spa', 1500.00, 'relaxing spa services');
+
+insert into feedback (guestid, bookingid, rating, feedback)
+values
+(1, 1, 5, 'amazing stay, very comfortable.'),
+(2, 2, 4, 'great service, but room was slightly noisy.'),
+(3, 3, 3, 'average experience, nothing special.'),
+(4, 4, 5, 'loved the spa and facilities!'),
+(5, 5, 4, 'good room, but gym could be better.');
+
+insert into payment (bookingid, date, amount, typeoftrans)
+values
+(1, '2025-09-01', 6000.00, 'card'),
+(2, '2025-09-05', 9000.00, 'upi'),
+(3, '2025-09-03', 2000.00, 'cash'),
+(4, '2025-09-08', 22000.00, 'netbanking'),
+(5, '2025-09-02', 8000.00, 'card');
+
+-- guest table indexes
+create nonclustered index ix_guest_emailid on guest(emailid);
+create nonclustered index ix_guest_phoneno on guest(phoneno);
+
+-- booking table indexes
+create nonclustered index ix_booking_guestemail on booking(guestemail);
+create nonclustered index ix_booking_dates on booking(indate, outdate);
+create nonclustered index ix_booking_typeofroom on booking(typeofroom);
+
+-- rooms table indexes
+create nonclustered index ix_rooms_roomnumber on rooms(roomnumber);
+create nonclustered index ix_rooms_typeofroom on rooms(typeofroom);
+create nonclustered index ix_rooms_status on rooms(status);
+
+-- facilities table indexes
+create nonclustered index ix_facilities_name on facilities(name);
+
+-- feedback table indexes
+create nonclustered index ix_feedback_guestid on feedback(guestid);
+create nonclustered index ix_feedback_bookingid on feedback(bookingid);
+
+-- payment table indexes
+create nonclustered index ix_payment_bookingid on payment(bookingid);
+create nonclustered index ix_payment_date on payment(date);
+
+-- queries using indexes
+
+-- find all bookings with guest names
+select g.firstname, g.lastname, b.bookingid, b.indate, b.outdate, b.totalprice
+from guest g
+join booking b on g.emailid = b.guestemail
+where b.indate between '2025-09-01' and '2025-09-10';
+
+-- update room status
+update rooms
+set status = 'occupied'
+where roomnumber = '101';
+
+-- delete feedback for a booking
+delete from feedback
+where bookingid = 3;
+
+-- show guest feedback with booking details
+select g.firstname, g.lastname, b.typeofroom, f.rating, f.feedback
+from feedback f
+join guest g on f.guestid = g.guestid
+join booking b on f.bookingid = b.bookingid
+where f.rating >= 4;
+
+-- apply 10% discount for rating 5
+update b
+set b.totalprice = b.totalprice * 0.9
+from booking b
+join feedback f on b.bookingid = f.bookingid
+where f.rating = 5;
+
+-- alter booking table to add discount
+alter table booking
+add discount decimal(10,2) default 0;
