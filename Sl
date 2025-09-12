@@ -1,0 +1,130 @@
+INSERT INTO Guest (FirstName, LastName, EmailID, PhoneNo, Gender, GovtIDProof, Address)
+VALUES 
+('Rahul', 'Sharma', 'rahul@example.com', '9876543210', 'Male', 'Aadhar123', 'Delhi, India'),
+('Anita', 'Verma', 'anita@example.com', '9876501234', 'Female', 'PAN567', 'Mumbai, India'),
+('Karan', 'Mehta', 'karan@example.com', '9812345678', 'Male', 'DL890', 'Bangalore, India'),
+('Sneha', 'Reddy', 'sneha@example.com', '9123456789', 'Female', 'Aadhar456', 'Hyderabad, India'),
+('Arjun', 'Kapoor', 'arjun@example.com', '9988776655', 'Male', 'Passport789', 'Chennai, India');
+
+
+INSERT INTO Login (EmailID, Password)
+VALUES
+('rahul@example.com', 'rahul@123'),
+('anita@example.com', 'anita@123'),
+('karan@example.com', 'karan@123'),
+('sneha@example.com', 'sneha@123'),
+('arjun@example.com', 'arjun@123');
+
+INSERT INTO Booking (GuestEmail, NoOfDaysStayed, InDate, OutDate, TypeOfRoom, NoOfMembers, TotalPrice, Facilities)
+VALUES
+('rahul@example.com', 3, '2025-09-01', '2025-09-04', 'Deluxe', 2, 6000.00, 'WiFi, Breakfast'),
+('anita@example.com', 2, '2025-09-05', '2025-09-07', 'Suite', 3, 9000.00, 'WiFi, Pool'),
+('karan@example.com', 1, '2025-09-03', '2025-09-04', 'Standard', 1, 2000.00, 'WiFi'),
+('sneha@example.com', 5, '2025-09-08', '2025-09-13', 'Suite', 4, 22000.00, 'WiFi, Spa, Pool'),
+('arjun@example.com', 4, '2025-09-02', '2025-09-06', 'Deluxe', 2, 8000.00, 'WiFi, Breakfast, Gym');
+
+
+INSERT INTO Rooms (RoomNumber, TypeOfRoom, Description, Status, Price, Capacity)
+VALUES
+('101', 'Standard', 'Basic room with AC', 'Available', 2000.00, 2),
+('102', 'Deluxe', 'Spacious room with balcony', 'Booked', 3000.00, 3),
+('103', 'Suite', 'Luxury suite with living area', 'Available', 4500.00, 4),
+('104', 'Deluxe', 'Room with pool view', 'Maintenance', 3500.00, 3),
+('105', 'Standard', 'Compact room for single guest', 'Available', 1500.00, 1);
+
+INSERT INTO Facilities (Name, Price, Description)
+VALUES
+('WiFi', 200.00, 'High-speed internet access'),
+('Breakfast', 500.00, 'Complimentary breakfast'),
+('Pool', 1000.00, 'Access to swimming pool'),
+('Gym', 800.00, 'Access to fitness center'),
+('Spa', 1500.00, 'Relaxing spa services');
+
+INSERT INTO Feedback (GuestID, BookingID, Rating, Feedback)
+VALUES
+(1, 1, 5, 'Amazing stay, very comfortable.'),
+(2, 2, 4, 'Great service, but room was slightly noisy.'),
+(3, 3, 3, 'Average experience, nothing special.'),
+(4, 4, 5, 'Loved the spa and facilities!'),
+(5, 5, 4, 'Good room, but gym could be better.');
+
+
+INSERT INTO Payment (BookingID, Date, Amount, TypeOfTrans)
+VALUES
+(1, '2025-09-01', 6000.00, 'Card'),
+(2, '2025-09-05', 9000.00, 'UPI'),
+(3, '2025-09-03', 2000.00, 'Cash'),
+(4, '2025-09-08', 22000.00, 'NetBanking'),
+(5, '2025-09-02', 8000.00, 'Card');
+
+
+-- Guest Table Indexes
+CREATE NONCLUSTERED INDEX IX_Guest_EmailID ON Guest(EmailID);
+CREATE NONCLUSTERED INDEX IX_Guest_PhoneNo ON Guest(PhoneNo);
+
+-- Login Table Indexes
+-- (EmailID is already PK and FK, clustered index exists)
+
+-- Booking Table Indexes
+CREATE NONCLUSTERED INDEX IX_Booking_GuestEmail ON Booking(GuestEmail);
+CREATE NONCLUSTERED INDEX IX_Booking_Dates ON Booking(InDate, OutDate);
+CREATE NONCLUSTERED INDEX IX_Booking_TypeOfRoom ON Booking(TypeOfRoom);
+
+-- Rooms Table Indexes
+CREATE NONCLUSTERED INDEX IX_Rooms_RoomNumber ON Rooms(RoomNumber);
+CREATE NONCLUSTERED INDEX IX_Rooms_TypeOfRoom ON Rooms(TypeOfRoom);
+CREATE NONCLUSTERED INDEX IX_Rooms_Status ON Rooms(Status);
+
+-- Facilities Table Indexes
+CREATE NONCLUSTERED INDEX IX_Facilities_Name ON Facilities(Name);
+
+-- Feedback Table Indexes
+CREATE NONCLUSTERED INDEX IX_Feedback_GuestID ON Feedback(GuestID);
+CREATE NONCLUSTERED INDEX IX_Feedback_BookingID ON Feedback(BookingID);
+
+-- Payment Table Indexes
+CREATE NONCLUSTERED INDEX IX_Payment_BookingID ON Payment(BookingID);
+CREATE NONCLUSTERED INDEX IX_Payment_Date ON Payment(Date);
+
+
+-- Find all bookings with guest names (uses Guest.EmailID index + Booking.GuestEmail index)
+SELECT g.FirstName, g.LastName, b.BookingID, b.InDate, b.OutDate, b.TotalPrice
+FROM Guest g
+JOIN Booking b ON g.EmailID = b.GuestEmail
+WHERE b.InDate BETWEEN '2025-09-01' AND '2025-09-10';
+
+-- Update room status when a booking is made
+UPDATE Rooms
+SET Status = 'Occupied'
+WHERE RoomNumber = '101';
+
+
+-- Delete feedback for a specific booking (uses Feedback.BookingID index)
+DELETE FROM Feedback
+WHERE BookingID = 3;
+-- Add an index for reporting queries on Payment.Date
+CREATE NONCLUSTERED INDEX IX_Payment_Date
+ON Payment(Date);
+
+-- Show guest feedback along with booking details (uses FK indexes)
+SELECT g.FirstName, g.LastName, b.TypeOfRoom, f.Rating, f.Feedback
+FROM Feedback f
+JOIN Guest g ON f.GuestID = g.GuestID
+JOIN Booking b ON f.BookingID = b.BookingID
+WHERE f.Rating >= 4;
+
+
+-- Apply 10% discount on total price for guests who gave rating 5
+UPDATE b
+SET b.TotalPrice = b.TotalPrice * 0.9
+FROM Booking b
+JOIN Feedback f ON b.BookingID = f.BookingID
+WHERE f.Rating = 5;
+
+ALTER TABLE Booking
+ADD Discount DECIMAL(10,2) DEFAULT 0;
+
+
+
+
+
